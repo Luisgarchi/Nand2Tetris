@@ -212,7 +212,6 @@ public class CodeWriter {
     }
       
 
-
     private void writeGt(){
 
         /*  Arguments:  2 (top two values on the stack)
@@ -368,14 +367,59 @@ public class CodeWriter {
 
 
 
-
-
     public void writePushPop(String command, String segment, String index){
-        if(command == "pop"){
+        if(command == "C_POP"){
             this.writePop(segment, index);
-        } else if(command == "push"){
+        } else if(command == "C_PUSH"){
             this.writePush(segment, index);
         }
+    }
+
+    private boolean isBasicSegment(String segment){
+        return (
+            segment == "local" || 
+            segment == "argument" || 
+            segment == "this" || 
+            segment == "that"
+        );
+    }
+
+    private void writeBasicSegment(String segment, String index){
+        
+        String seg_addr;
+        if(segment == "local"){
+            seg_addr = "@LCL";
+        }
+        else if(segment == "argument"){
+            seg_addr = "@ARG";
+        } 
+        else if(segment == "this"){
+            seg_addr = "@THIS";
+        }
+        else if(segment == "that"){
+            seg_addr = "@THAT";
+        }
+
+        String a_index = "@" + index;
+
+        String[] code = {
+            // SP--
+            "@SP",
+            "M=M-1",
+            // addr = segment + i
+            seg_addr,
+            "D=M",
+            a_index,
+            "D=D+A",
+            "@addr",
+            "M=D",
+            // *addr = *SP
+            "@SP",
+            "A=M",
+            "D=M",
+            "@addr",
+            "M=D"
+        };
     }
 
     private void writePop(String segment, String index){
@@ -383,46 +427,8 @@ public class CodeWriter {
         // addr = segment + i
         // *addr = *SP
 
-        if(
-            segment == "local" || 
-            segment == "argument" || 
-            segment == "this" || 
-            segment == "that"
-        ){
-            String seg_addr;
-            if(segment == "local"){
-                seg_addr = "@LCL";
-            }
-            else if(segment == "argument"){
-                seg_addr = "@ARG";
-            } 
-            else if(segment == "this"){
-                seg_addr = "@THIS";
-            }
-            else if(segment == "that"){
-                seg_addr = "@THAT";
-            }
-
-            String a_index = "@" + index;
-
-            String[] code = {
-                // SP--
-                "@SP",
-                "M=M-1",
-                // addr = segment + i
-                seg_addr,
-                "D=M",
-                a_index,
-                "D=D+A",
-                "@addr",
-                "M=D",
-                // *addr = *SP
-                "@SP",
-                "A=M",
-                "D=M",
-                "@addr",
-                "M=D"
-            };
+        if(this.isBasicSegment(segment)){
+            this.writeBasicSegment(segment, segment);
         }
 
     }
