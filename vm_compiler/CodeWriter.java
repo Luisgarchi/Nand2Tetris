@@ -5,7 +5,9 @@ import java.io.IOException;
 public class CodeWriter {
 
     private FileWriter output;
-
+    private int eq_label_count;
+    private int gt_label_count;
+    private int lt_label_count;
 
     public CodeWriter(String filename){
 
@@ -14,6 +16,10 @@ public class CodeWriter {
         } catch(IOException e){
             e.printStackTrace(); 
         }
+
+        this.eq_label_count = 0;
+        this.gt_label_count = 0;
+        this.lt_label_count = 0;
     }
     
     public void writeArithmetic(String command){
@@ -95,9 +101,9 @@ public class CodeWriter {
     private void writeAdd(){
 
         /*  Arguments: 2 (top two values on the stack)
-            Operation: 
+            ADDITION Operation: 
             - Pops the top two values, 
-            - adds them, 
+            - ADDS them, 
             - and pushes the result back on the stack. 
         */
 
@@ -121,9 +127,9 @@ public class CodeWriter {
     private void writeSub(){
 
         /*  Arguments: 2 (top two values on the stack)
-            Operation: 
+            SUBTRACTION Operation: 
             - Pops the top two values, 
-            - subtracts the top value from the second-to-top value, 
+            - SUBTRACT the top value from the second-to-top value, 
             - and pushes the result back on the stack.
         */
 
@@ -147,7 +153,7 @@ public class CodeWriter {
     private void writeNeg(){
 
         /*  Arguments: 1 (top stack value)
-            Operation: 
+            Negation Operation (x = -x): 
             - Pops the value, 
             - performs negation operation, 
             - and pushes the result back on the stack.
@@ -169,10 +175,10 @@ public class CodeWriter {
     private void writeEq(){
 
         /*  Arguments:  2 (top two values on the stack)
-            Operation: 
+            EQUALITY Operation: 
             - Pops the top two values,
             - Subtracts the top value from the bottom
-            - Checks if the result is zero and then applies conditional jumps to push either 0 or 1 to the stack
+            - Checks if the result EQUALS zero and then applies conditional jumps to push either 0 (false) or 1 (true) to the stack
         */
 
         String[] code = {
@@ -184,14 +190,14 @@ public class CodeWriter {
             "M=M-1",    
             "A=M",          // After this command M will be equal to the bottom value
             "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
-            "@EQ_TRUE_X",   // Jump to the True condition i.e. top == bottom
-            "D; JEQ",       
+            "@EQ_TRUE_" + this.eq_label_count,          // Jump to the True condition i.e. top == bottom
+            "D; JEQ",       // EQUALS zero check
             "D=0",          // Otherwise set result to 0 (False) and...
-            "@EQ_EXIT_X",   // Uncoditionally jump to the exit condition
+            "@EQ_END_" + this.eq_label_count,           // Uncoditionally jump to the end condition
             "0;JMP",
-            "(EQ_TRUE_X)",  // Set result to 1 (True)
+            "(EQ_TRUE_" + this.eq_label_count + ")",    // Set result to 1 (True)
             "D=1",
-            "(EQ_PUSH_X)",  // Push the result on to the stack
+            "(EQ_END_" + this.eq_label_count + ")",     // Push the result on to the stack
             "@SP",
             "A=M",
             "M=D",
@@ -199,19 +205,100 @@ public class CodeWriter {
             "M=M+1"
         };
 
+        // Increment label counter for Equality operations.
+        this.eq_label_count++;
+
         this.writeCode(code);
     }
       
 
-    // GREATER THAN
+
+    private void writeGt(){
+
+        /*  Arguments:  2 (top two values on the stack)
+            GREATER THAN Operation: 
+            - Pops the top two values,
+            - Subtracts the top value from the bottom
+            - Checks if the result is GREATER THAN zero and then applies conditional jumps to push either 0 (false) or 1 (true) to the stack
+        */
+
+        String[] code = {
+            "@SP",          // Pop top
+            "M=M-1", 
+            "A=M", 
+            "D=M",          // Store top in D
+            "@SP",          // Pop bottom
+            "M=M-1",    
+            "A=M",          // After this command M will be equal to the bottom value
+            "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
+            "@GT_TRUE_" + this.gt_label_count,          // Jump to the True condition i.e. top == bottom
+            "D; JGT",       // GREATER THAN check
+            "D=0",          // Otherwise set result to 0 (False) and...
+            "@GT_END_" + this.gt_label_count,           // Uncoditionally jump to the end condition
+            "0;JMP",
+            "(GT_TRUE_" + this.gt_label_count + ")",    // Set result to 1 (True)
+            "D=1",
+            "(GT_END_" + this.gt_label_count + ")",     // Push the result on to the stack
+            "@SP",
+            "A=M",
+            "M=D",
+            "@SP",          // Increment stack pointer
+            "M=M+1"
+        };
+
+        // Increment label counter for Equality operations.
+        this.gt_label_count++;
+
+        this.writeCode(code);
+    }
+
+
+    private void writeLt(){
+
+        /*  Arguments:  2 (top two values on the stack)
+            LESS THAN Operation: 
+            - Pops the top two values,
+            - Subtracts the top value from the bottom
+            - Checks if the result is LESS THAN zero and then applies conditional jumps to push either 0 (false) or 1 (true) to the stack
+        */
+
+        String[] code = {
+            "@SP",          // Pop top
+            "M=M-1", 
+            "A=M", 
+            "D=M",          // Store top in D
+            "@SP",          // Pop bottom
+            "M=M-1",    
+            "A=M",          // After this command M will be equal to the bottom value
+            "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
+            "@LT_TRUE_" + this.lt_label_count,          // Jump to the True condition i.e. top == bottom
+            "D; JLT",       // LESS THAN check
+            "D=0",          // Otherwise set result to 0 (False) and...
+            "@LT_END_" + this.lt_label_count,           // Uncoditionally jump to the end condition
+            "0;JMP",
+            "(LT_TRUE_" + this.lt_label_count + ")",    // Set result to 1 (True)
+            "D=1",
+            "(LT_END_" + this.lt_label_count + ")",     // Push the result on to the stack
+            "@SP",
+            "A=M",
+            "M=D",
+            "@SP",          // Increment stack pointer
+            "M=M+1"
+        };
+
+        // Increment label counter for Equality operations.
+        this.lt_label_count++;
+
+        this.writeCode(code);
+    }
 
 
     private void writeAnd(){
 
         /*  Arguments: 2 (top two values on the stack)
-            Operation: 
+            BITWISE AND Operation: 
             - Pops the top two values, 
-            - Performs a bitwise AND between the top two values, 
+            - Performs a BITWISE AND between the top two values, 
             - and pushes the result back.
         */
 
@@ -235,9 +322,9 @@ public class CodeWriter {
     private void writeOr(){
 
         /*  Arguments: 2 (top two values on the stack)
-            Operation: 
+            BITWISE OR Operation: 
             - Pops the top two values, 
-            - Performs a bitwise OR between the top two values, 
+            - Performs a BITWISE OR between the top two values, 
             - and pushes the result back.
         */
 
@@ -261,9 +348,9 @@ public class CodeWriter {
     private void writeNot(){
 
         /*  Arguments: 1 (top stack value)
-            Operation: 
+            BITWISE NOT Operation: 
             - Pops the value, 
-            - Performs a bitwise OR between the top two values, 
+            - Performs a BITWISE NOT, 
             - and pushes the result back.
         */
 
