@@ -1,0 +1,135 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/5/CPU.hdl
+/**
+ * The Hack Central Processing unit (CPU).
+ * Parses the binary code in the instruction input and executes it according to the
+ * Hack machine language specification. In the case of a C-instruction, computes the
+ * function specified by the instruction. If the instruction specifies to read a memory
+ * value, the inM input is expected to contain this value. If the instruction specifies
+ * to write a value to the memory, sets the outM output to this value, sets the addressM
+ * output to the target address, and asserts the writeM output (when writeM = 0, any
+ * value may appear in outM).
+ * If the reset input is 0, computes the address of the next instruction and sets the
+ * pc output to that value. If the reset input is 1, sets pc to 0.
+ * Note: The outM and writeM outputs are combinational: they are affected by the
+ * instruction's execution during the current cycle. The addressM and pc outputs are
+ * clocked: although they are affected by the instruction's execution, they commit to
+ * their new values only in the next cycle.
+ */
+CHIP CPU {
+
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue executing
+                         // the current program (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+	//// Replace this comment with your code.
+
+
+    Mux16(a= instruction, b= ALUoutput, sel= instruction[15], out= inputAregister);
+    
+    // A-register
+
+    // The "load" of the A register will be true if the instruction is an 
+    // (A-instruction) OR ((if it is C-inctruction) AND (the "A" dest bit is true))
+    // The A dest bit is index 5 (6th LSBit) of the instruction
+    Not(in= instruction[15], out= isAinstruction);
+    Or(a= isAinstruction, b= instruction[5], out= isRewriteA);
+    Register(in= inputAregister, load= isRewriteA, out= Aregister);
+
+    // Pass the address register as one of the CPU outputs
+    Or16(a= Aregister, b= false, out[0..14]= addressM);
+
+    // Second input to ALU (Second input to ALU is just the D-register)
+
+    // Check if the "a" bit from the "comp" bits is true or false.
+    // This bit is index number 12 (13th LSBit) of the C-instruction
+    // if 0 take as input the A-register if 1 take the in Memory value (inM)
+    Mux16(a= Aregister, b= inM, sel= instruction[12], out= ALUinput2);
+
+    //ALU
+    ALU(x= Dregister, y= ALUinput2, 
+        zx= instruction[11], 
+        nx= instruction[10], 
+        zy= instruction[9], 
+        ny= instruction[8], 
+        f= instruction[7], 
+        no= instruction[6], 
+        out= ALUoutput, zr= isZero, ng= isNegative
+    );
+
+    // Pass the ALU output as one of the CPU outputs
+    Or16(a= ALUoutput, b= false, out= outM);
+
+    // Write M bit will only ever be true if it is:
+    // (C-instruction) AND (the "M" dest bit is true))
+    // The M dest bit is index 3 (4th LSBit) of the instruction
+    And(a= instruction[15], b= instruction[3], out= writeM);
+
+    // D-register will only ever be changed if it is:
+    // (C-instruction) AND (the "D" dest bit is true))
+    And(a= instruction[15], b= instruction[4], out= isRewriteD);
+    Register(in= ALUoutput, load= isRewriteD, out= Dregister);
+
+
+    // PC jump conditions (used boolean algebra to simplify and reduce number of gates)
+    // let A = J1, B = J2 and C=J3 (for the jump bits instruction[2/1/0] respectively)
+    // let N = isNegative and Z = isZero
+    // CN'Z' + BCN' + BZ + ANZ' + ANB + ACZ' + ACB
+
+    Not(in= isZero, out= notZero);
+    Not(in= isNegative, out= isPositive);
+
+    // CN'Z'
+    And(a= instruction[0], b= isPositive, out= CNprime);
+    And(a= CNprime, b= notZero, out= CNprimeZprime);
+
+    // BCN'
+    And(a= instruction[1], b= CNprime, out= BCNprime);
+
+    // BZ
+    And(a= instruction[1], b= isZero, out= BZ); 
+
+    // ANZ'
+    And(a= instruction[2], b= isNegative, out= AN);
+    And(a= AN, b= notZero, out= ANZprime);
+
+    // ANB
+    And(a= instruction[1], b= AN, out= ANB);
+
+    // ACZ'
+    And(a= instruction[2], b= instruction[0], out= AC);
+    And(a= AC, b= notZero, out= ACZprime);
+
+    // ACB
+    And(a= AC, b= instruction[1], out= ABC);
+
+
+    Or(a= CNprimeZprime, b= BCNprime, out= pcLoadTemp1);
+    Or(a= pcLoadTemp1, b= BZ, out= pcLoadTemp2);
+    Or(a= pcLoadTemp2, b= ANZprime, out= pcLoadTemp3);
+    Or(a= pcLoadTemp3, b= ANB, out= pcLoadTemp4);
+    Or(a= pcLoadTemp4, b= ACZprime, out= pcLoadTemp5);
+    Or(a= pcLoadTemp5, b= ABC, out= pcLoadTemp6);
+
+    // A VERY IMPORTANT logic we must not forget is that we will only
+    // ever jump during a C-instruction otherwise the load must be set to 0
+
+    And(a= instruction[15], b= pcLoadTemp6, out= pcLoad);
+
+    // According to the PC logic inc can be set to true since we will always
+    // want to increment if neither reset or load is not true 
+    // (look at if / else if /else PC condtions)
+    PC(in= Aregister, load= pcLoad, inc= true, reset= reset, out[0..14]= pc);
+
+
+} 
