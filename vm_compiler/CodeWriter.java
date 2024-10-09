@@ -121,12 +121,10 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",      // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1", 
             "D=M",      // Store top in D
             "@SP",      // Pop bottom
-            "M=M-1", 
-            "A=M",      // After this command M will be equal to the bottom value
+            "AM=M-1",   // After this command M will be equal to the bottom value
             "M=D+M",    // ADD - we add the top value to the bottom
             "@SP",      // Increment stack pointer
             "M=M+1"
@@ -147,12 +145,10 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",      // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1", 
             "D=M",      // Store top in D
             "@SP",      // Pop bottom
-            "M=M-1",    
-            "A=M",      // After this command M will be equal to the bottom value
+            "AM=M-1",    // After this command M will be equal to the bottom value      
             "M=M-D",    // SUBTRACT - we subtract the top value from the bottom
             "@SP",      // Push result onto stack
             "M=M+1"
@@ -173,8 +169,7 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",      // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1",
             "M=-M",     // NEGATE
             "@SP",      // Increment stack pointer
             "M=M+1"
@@ -195,12 +190,10 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",          // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1",
             "D=M",          // Store top in D
             "@SP",          // Pop bottom
-            "M=M-1",    
-            "A=M",          // After this command M will be equal to the bottom value
+            "AM=M-1",       // After this command M will be equal to the bottom value   
             "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
             "@EQ_TRUE_" + this.eq_label_count,          // Jump to the True condition i.e. top == bottom
             "D; JEQ",       // EQUALS zero check
@@ -235,12 +228,10 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",          // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1", 
             "D=M",          // Store top in D
             "@SP",          // Pop bottom
-            "M=M-1",    
-            "A=M",          // After this command M will be equal to the bottom value
+            "AM=M-1",       // After this command M will be equal to the bottom value
             "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
             "@GT_TRUE_" + this.gt_label_count,          // Jump to the True condition i.e. top == bottom
             "D; JGT",       // GREATER THAN check
@@ -275,12 +266,10 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",          // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1",
             "D=M",          // Store top in D
             "@SP",          // Pop bottom
-            "M=M-1",    
-            "A=M",          // After this command M will be equal to the bottom value
+            "AM=M-1",       // After this command M will be equal to the bottom value
             "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
             "@LT_TRUE_" + this.lt_label_count,          // Jump to the True condition i.e. top == bottom
             "D; JLT",       // LESS THAN check
@@ -315,12 +304,10 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",      // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1",
             "D=M",      // Store top in D
             "@SP",      // Pop top
-            "M=M-1", 
-            "A=M",      // After this command M will be equal to the bottom value
+            "AM=M-1",   // After this command M will be equal to the bottom value¡
             "M=D&M",    // BITWISE AND
             "@SP",      // Increment stack pointer
             "M=M+1"
@@ -341,12 +328,10 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",      // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1", 
             "D=M",      // Store top in D
             "@SP",      // Pop top
-            "M=M-1", 
-            "A=M",      // After this command M will be equal to the bottom value
+            "AM=M-1",   // After this command M will be equal to the bottom value
             "M=D|M",    // BITWISE OR
             "@SP",      // Increment stack pointer
             "M=M+1"
@@ -367,8 +352,7 @@ public class CodeWriter {
 
         String[] code = {
             "@SP",      // Pop top
-            "M=M-1", 
-            "A=M", 
+            "AM=M-1",   
             "M=!M",     // BITWISE NOT
             "@SP",      // Increment stack pointer
             "M=M+1"
@@ -442,6 +426,23 @@ public class CodeWriter {
         String a_index = "@" + index;
 
         String[] code = {
+            // addr = segment + i
+            seg_addr,
+            "D=M",
+            a_index,
+            "D=D+A",
+            "@R13",
+            "M=D",
+            // *addr = *SP--
+            "@SP",
+            "AM=M-1",
+            "D=M",
+            "@R13",
+            "A=M",
+            "M=D"
+        };
+
+        String[] non_optimal_code = {
             // SP--
             "@SP",
             "M=M-1",
@@ -450,13 +451,13 @@ public class CodeWriter {
             "D=M",
             a_index,
             "D=D+A",
-            "@addr",
+            "@R13",
             "M=D",
             // *addr = *SP
             "@SP",
             "A=M",
             "D=M",
-            "@addr",
+            "@R13",
             "A=M",
             "M=D"
         };
@@ -470,12 +471,9 @@ public class CodeWriter {
         String addr = "@" + this.filename +"." + index;
 
         String[] code = {
-            // SP--
+            // *addr = *SP--
             "@SP",
-            "M=M-1",
-            // *addr = *SP
-            "@SP",
-            "A=M",
+            "AM=M-1",
             "D=M",
             // If it is the first time the parser sees the static segment address 
             // the parser will go ahead and allocate it for us in the next available variable symbol location
@@ -502,11 +500,9 @@ public class CodeWriter {
         }
 
         String[] code = {
-            // SP--
+            // *addr = *SP--
             "@SP",
-            "M=M-1",
-            // *addr = *SP
-            "A=M",
+            "AM=M-1",
             "D=M",
             pointer_addr,
             "M=D" 
