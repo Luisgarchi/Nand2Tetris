@@ -28,6 +28,24 @@ public class CodeWriter {
         this.gt_label_count = 0;
         this.lt_label_count = 0;
     }
+
+
+    private void writeCode(String[] code){
+
+        // Takes an sequence of comamnds and writes them line by line to the output file
+
+        try {
+            this.output.write("// " + this.curr_instruction);
+            this.output.write(System.lineSeparator());
+            for(int i = 0; i < code.length; i++){
+                this.output.write(code[i]);
+                this.output.write(System.lineSeparator());
+            }
+        } catch(IOException e){
+            e.printStackTrace(); 
+        }
+    }
+
     
     public void writeArithmetic(String instruction, String command){
 
@@ -91,23 +109,6 @@ public class CodeWriter {
         } 
 
     }
-
-
-    private void writeCode(String[] code){
-
-        // Takes an sequence of comamnds and writes them line by line to the output file
-
-        try {
-            this.output.write("// " + this.curr_instruction);
-            this.output.write(System.lineSeparator());
-            for(int i = 0; i < code.length; i++){
-                this.output.write(code[i]);
-                this.output.write(System.lineSeparator());
-            }
-        } catch(IOException e){
-            e.printStackTrace(); 
-        }
-    }
     
 
     private void writeAdd(){
@@ -120,14 +121,11 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",      // Pop top
-            "AM=M-1", 
-            "D=M",      // Store top in D
-            "@SP",      // Pop bottom
-            "AM=M-1",   // After this command M will be equal to the bottom value
-            "M=D+M",    // ADD - we add the top value to the bottom
-            "@SP",      // Increment stack pointer
-            "M=M+1"
+            "@SP",
+            "AM=M-1",   // Pop first arg and do SP--
+            "D=M",      // Store first arg in D 
+            "A=A-1",    // Go to *SP-1 address 
+            "M=D+M"     // Get the second arg (M) and ADD to the first arg (D), store result in M.
         };
 
         this.writeCode(code);
@@ -144,14 +142,11 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",      // Pop top
-            "AM=M-1", 
-            "D=M",      // Store top in D
-            "@SP",      // Pop bottom
-            "AM=M-1",    // After this command M will be equal to the bottom value      
-            "M=M-D",    // SUBTRACT - we subtract the top value from the bottom
-            "@SP",      // Push result onto stack
-            "M=M+1"
+            "@SP",
+            "AM=M-1",   // Pop first arg and do SP--
+            "D=M",      // Store first arg in D 
+            "A=A-1",    // Go to *SP-1 address 
+            "M=M-D"     // Get the second arg (M) and SUBTRACT the first arg (D), store result in M.
         };
 
         this.writeCode(code);
@@ -168,11 +163,10 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",      // Pop top
-            "AM=M-1",
-            "M=-M",     // NEGATE
-            "@SP",      // Increment stack pointer
-            "M=M+1"
+            "@SP",      // Go to top value address
+            "A=M",          
+            "A=A-1",    // Go to *SP-1 address 
+            "M=-M",     // Inplace NEGATION
         };
 
         this.writeCode(code);
@@ -189,25 +183,23 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",          // Pop top
+            "@SP",          // Pop first arg
             "AM=M-1",
-            "D=M",          // Store top in D
-            "@SP",          // Pop bottom
-            "AM=M-1",       // After this command M will be equal to the bottom value   
-            "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
-            "@EQ_TRUE_" + this.eq_label_count,          // Jump to the True condition i.e. top == bottom
-            "D; JEQ",       // EQUALS zero check
+            "D=M",          // Store first arg in D
+            "A=A-1",        // Go to *SP-1 address. After this command M will be equal to the second value   
+            "D=M-D",        // SUBTRACT - the first arg value from the second
+            "@EQ_TRUE_" + this.eq_label_count,          // Jump to the True condition i.e. arg1 == arg2
+            "D;JEQ",        // EQUALS zero check
             "D=0",          // Otherwise set result to 0 (False) and...
             "@EQ_END_" + this.eq_label_count,           // Uncoditionally jump to the end condition
             "0;JMP",
             "(EQ_TRUE_" + this.eq_label_count + ")",    // Set result to 1 (True)
-            "D=1",
-            "(EQ_END_" + this.eq_label_count + ")",     // Push the result on to the stack
+            "D=-1",         // TRUE == -1 (all ones, 0xFFFF)
+            "(EQ_END_" + this.eq_label_count + ")",
             "@SP",
             "A=M",
+            "A=A-1",
             "M=D",
-            "@SP",          // Increment stack pointer
-            "M=M+1"
         };
 
         // Increment label counter for Equality operations.
@@ -227,25 +219,23 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",          // Pop top
-            "AM=M-1", 
-            "D=M",          // Store top in D
-            "@SP",          // Pop bottom
-            "AM=M-1",       // After this command M will be equal to the bottom value
-            "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
-            "@GT_TRUE_" + this.gt_label_count,          // Jump to the True condition i.e. top == bottom
-            "D; JGT",       // GREATER THAN check
+            "@SP",          // Pop first arg
+            "AM=M-1",
+            "D=M",          // Store first arg in D
+            "A=A-1",        // Go to *SP-1 address. After this command M will be equal to the second value   
+            "D=M-D",        // SUBTRACT - the first arg value from the second
+            "@GT_TRUE_" + this.gt_label_count,          // Jump to the True condition i.e. arg1 == arg2
+            "D;JGT",        // GREATER THAN zero check
             "D=0",          // Otherwise set result to 0 (False) and...
             "@GT_END_" + this.gt_label_count,           // Uncoditionally jump to the end condition
             "0;JMP",
             "(GT_TRUE_" + this.gt_label_count + ")",    // Set result to 1 (True)
-            "D=1",
-            "(GT_END_" + this.gt_label_count + ")",     // Push the result on to the stack
+            "D=-1",         // TRUE == -1 (all ones, 0xFFFF)   
+            "(GT_END_" + this.gt_label_count + ")", 
             "@SP",
             "A=M",
+            "A=A-1",
             "M=D",
-            "@SP",          // Increment stack pointer
-            "M=M+1"
         };
 
         // Increment label counter for Equality operations.
@@ -265,25 +255,23 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",          // Pop top
+            "@SP",          // Pop first arg
             "AM=M-1",
-            "D=M",          // Store top in D
-            "@SP",          // Pop bottom
-            "AM=M-1",       // After this command M will be equal to the bottom value
-            "D=M-D",        // SUBTRACT - we subtract the top value from the bottom
-            "@LT_TRUE_" + this.lt_label_count,          // Jump to the True condition i.e. top == bottom
-            "D; JLT",       // LESS THAN check
+            "D=M",          // Store first arg in D
+            "A=A-1",        // Go to *SP-1 address. After this command M will be equal to the second value   
+            "D=M-D",        // SUBTRACT - the first arg value from the second
+            "@LT_TRUE_" + this.lt_label_count,          // Jump to the True condition i.e. arg1 == arg2
+            "D;JLT",        // GREATER THAN zero check
             "D=0",          // Otherwise set result to 0 (False) and...
             "@LT_END_" + this.lt_label_count,           // Uncoditionally jump to the end condition
             "0;JMP",
             "(LT_TRUE_" + this.lt_label_count + ")",    // Set result to 1 (True)
-            "D=1",
-            "(LT_END_" + this.lt_label_count + ")",     // Push the result on to the stack
+            "D=-1",         // TRUE == -1 (all ones, 0xFFFF)
+            "(LT_END_" + this.lt_label_count + ")",
             "@SP",
             "A=M",
+            "A=A-1",
             "M=D",
-            "@SP",          // Increment stack pointer
-            "M=M+1"
         };
 
         // Increment label counter for Equality operations.
@@ -303,14 +291,11 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",      // Pop top
-            "AM=M-1",
-            "D=M",      // Store top in D
-            "@SP",      // Pop top
-            "AM=M-1",   // After this command M will be equal to the bottom value¡
-            "M=D&M",    // BITWISE AND
-            "@SP",      // Increment stack pointer
-            "M=M+1"
+            "@SP",      
+            "AM=M-1",   // Pop first arg and do SP--
+            "D=M",      // Store first arg in D 
+            "A=A-1",    // Go to *SP-1 address 
+            "M=D&M",    // Get the second arg (M) and perform BITWISE AND the first arg (D), store result in M.
         };
 
         this.writeCode(code);
@@ -327,14 +312,11 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",      // Pop top
-            "AM=M-1", 
-            "D=M",      // Store top in D
-            "@SP",      // Pop top
-            "AM=M-1",   // After this command M will be equal to the bottom value
-            "M=D|M",    // BITWISE OR
-            "@SP",      // Increment stack pointer
-            "M=M+1"
+            "@SP",
+            "AM=M-1",   // Pop first arg and do SP--
+            "D=M",      // Store first arg in D 
+            "A=A-1",    // Go to *SP-1 address 
+            "M=D|M",    // Get the second arg (M) and perform BITWISE OR the first arg (D), store result in M.
         };
 
         this.writeCode(code);
@@ -351,11 +333,10 @@ public class CodeWriter {
         */
 
         String[] code = {
-            "@SP",      // Pop top
-            "AM=M-1",   
-            "M=!M",     // BITWISE NOT
-            "@SP",      // Increment stack pointer
-            "M=M+1"
+            "@SP",      // Go to top value address
+            "A=M",   
+            "A=A-1",
+            "M=!M",     // Inplace BITWISE NOT
         };
 
         this.writeCode(code);
@@ -383,10 +364,12 @@ public class CodeWriter {
             segment.equals("local") || 
             segment.equals("argument") || 
             segment.equals("this") || 
-            segment.equals("that") ||
-            segment.equals("temp")
+            segment.equals("that")
         ){
             this.popBasicSegment(segment, index);
+        }
+        else if (segment.equals("temp")){
+            this.popTempSegment(index);
         }
         else if (segment.equals("static")){
             this.popStaticSegment(index);
@@ -416,46 +399,23 @@ public class CodeWriter {
         else if  (segment.equals("that")){
             seg_addr = "@THAT";
         }
-        else if (segment.equals("temp")){
-            seg_addr = "@5";
-        }
         else {
-            throw new Error("Invalid Ssegment. Method 'popBasicSegment' only supports segments 'local', 'argument', 'this', 'that' and 'temp'.");
+            throw new Error("Invalid Segment. Method 'popBasicSegment' only supports segments 'local', 'argument', 'this' and 'that'.");
         }
 
-        String a_index = "@" + index;
+        String index_addr = "@" + index;
 
         String[] code = {
             // addr = segment + i
             seg_addr,
             "D=M",
-            a_index,
+            index_addr,
             "D=D+A",
             "@R13",
             "M=D",
             // *addr = *SP--
             "@SP",
             "AM=M-1",
-            "D=M",
-            "@R13",
-            "A=M",
-            "M=D"
-        };
-
-        String[] non_optimal_code = {
-            // SP--
-            "@SP",
-            "M=M-1",
-            // addr = segment + i
-            seg_addr,
-            "D=M",
-            a_index,
-            "D=D+A",
-            "@R13",
-            "M=D",
-            // *addr = *SP
-            "@SP",
-            "A=M",
             "D=M",
             "@R13",
             "A=M",
@@ -465,10 +425,26 @@ public class CodeWriter {
         this.writeCode(code);
     }
 
+    private void popTempSegment(String index){
+
+        String temp_addr = "@" + String.valueOf(5 + Integer.valueOf(index));
+        
+        String[] code = {
+            // *addr = *SP--
+            "@SP",
+            "AM=M-1",
+            "D=M",
+            temp_addr,
+            "M=D"
+        };
+
+        this.writeCode(code);
+    }
+
 
     private void popStaticSegment(String index){
 
-        String addr = "@" + this.filename +"." + index;
+        String static_addr = "@" + this.filename +"." + index;
 
         String[] code = {
             // *addr = *SP--
@@ -477,7 +453,7 @@ public class CodeWriter {
             "D=M",
             // If it is the first time the parser sees the static segment address 
             // the parser will go ahead and allocate it for us in the next available variable symbol location
-            addr,      
+            static_addr,      
             "M=D"
         };
 
@@ -520,10 +496,12 @@ public class CodeWriter {
             segment.equals("local") || 
             segment.equals("argument") || 
             segment.equals("this") || 
-            segment.equals("that") ||
-            segment.equals("temp")
+            segment.equals("that")
         ){
             this.pushBasicSegmnet(segment, index);
+        }
+        else if (segment.equals("temp")){
+            this.pushTempSegment(index);
         }
         else if(segment.equals("constant")){
             this.pushConstant(index);
@@ -554,29 +532,43 @@ public class CodeWriter {
         else if  (segment.equals("that")){
             seg_addr = "@THAT";
         }
-        else if (segment.equals("temp")){
-            seg_addr = "@5";
-        }
         else {
-            throw new Error("Invalid Ssegment. Method 'popBasicSegment' only supports segments 'local', 'argument', 'this', 'that' and 'temp'.");
+            throw new Error("Invalid Ssegment. Method 'popBasicSegment' only supports segments 'local', 'argument', 'this' and 'that'.");
         }
 
-        String a_index = "@" + index;
+        String index_addr = "@" + index;
 
         String[] code = {
 
             // addr = segment + i
             seg_addr,
             "D=M",
-            a_index,
-            "D=D+A",
-            // *SP = *addr
-            "@SP",
-            "A=M",
-            "M=D",
+            index_addr,
+            "A=D+A",
+            "D=M",      // store *addr in D
             // SP++
+            // *(SP-1) = *addr
             "@SP",
-            "M=M+1"
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+        };
+
+        this.writeCode(code);
+    }
+
+
+    private void pushTempSegment(String index){
+        
+        String temp_addr = "@" + String.valueOf(5 + Integer.valueOf(index));
+
+        String[] code = {
+            temp_addr,
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D"
         };
 
         this.writeCode(code);
@@ -587,18 +579,17 @@ public class CodeWriter {
         // *SP = index
         // SP++
 
-        String a_index = "@" + index;
+        String const_addr = "@" + index;
 
         String[] code = {
-            // *SP = index
-            a_index,
+            const_addr,
             "D=A",      // Stores the address value
-            "@SP",
-            "A=M",
-            "M=D",
             // SP++
+            // *(SP-1) = *addr
             "@SP",
-            "M=M+1"
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
         };
 
         this.writeCode(code);
@@ -609,18 +600,18 @@ public class CodeWriter {
         // *SP = index
         // SP++
 
-        String addr = "@" + this.filename +"." + index;
+        String static_addr = "@" + this.filename +"." + index;
 
         String[] code = {
             // *SP = *addr
-            addr,
+            static_addr,
             "D=M",      // Stores contents of the static variable
-            "@SP",      
-            "A=M",      
-            "M=D",
             // SP++
-            "@SP",
-            "M=M+1"
+            // *(SP-1) = *addr
+            "@SP",      
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
         };
 
         this.writeCode(code);
@@ -631,11 +622,11 @@ public class CodeWriter {
         // SP++
 
         String pointer_addr;
-
-        if(index == "0"){
+        
+        if(index.equals("0")){
             pointer_addr = "@THIS";
         }
-        else if (index == "1"){
+        else if (index.equals("1")){
             pointer_addr = "@THAT";
         }
         else {
@@ -643,15 +634,14 @@ public class CodeWriter {
         }
 
         String[] code = {
-            // *SP = THIS/THAT
             pointer_addr,
             "D=M",
-            "@SP",
-            "A=M",
-            "M=D",
             // SP++
+            // *(SP-1) = THIS/THAT
             "@SP",
-            "M=M+1"
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
         };
 
         this.writeCode(code);
