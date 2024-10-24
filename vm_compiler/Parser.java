@@ -6,23 +6,22 @@ import java.util.Scanner;
 public class Parser {
     private Scanner scanner;
     private String VMcode;
-    private String[] parsedCode;
     private String command;
     private String commandType;
-    private String segment;
-    private String value;
+    private String arg1;
+    private String arg2;
 
-    public Parser(String input_filename){
+    public Parser(File file){
         try {
-            Scanner scanner = new Scanner(new File(input_filename));
+            Scanner scanner = new Scanner(file);
             this.scanner = scanner;
         } catch (FileNotFoundException e){
             e.printStackTrace();
         }
 
         this.VMcode = null;
-        this.segment = null;
-        this.value = null;
+        this.arg1 = null;
+        this.arg2 = null;
     }
 
     public boolean hasMoreCommands(){
@@ -31,61 +30,106 @@ public class Parser {
 
     public String advance(){
         
-        this.VMcode = this.scanner.nextLine();
-        String vm_code_stripped = this.VMcode.trim();
+        // read the line
+        String line = this.scanner.nextLine().trim();
 
+        // Return null if comment or empty
         if (
-            vm_code_stripped.isEmpty() ||       // empty line in VM code should be ignored
-            (vm_code_stripped.charAt(0) == '/' && vm_code_stripped.charAt(1) == '/')    // comments in VM code should be ignored
+            line.isEmpty() ||       // empty line in VM code should be ignored
+            line.startsWith("//")    // comments in VM code should be ignored
         ){
             return null;
         }
- 
-        this.parsedCode = this.VMcode.split("\\s+");
 
-        this.command = this.parsedCode[0];
-        if(this.parsedCode.length == 3){
-            this.segment = this.parsedCode[1];
-            this.value = this.parsedCode[2];
-        }
-        else {
-            this.segment = null;
-            this.value = null;
+        if (line.contains("//")){
+            line = line.substring(0, line.lastIndexOf("//"));
         }
 
+        // Parse the commands
+        String[] parsedCode = line.split("\\s+");
+
+        this.VMcode = String.join(" ", parsedCode);
+
+
+        this.command = parsedCode[0];
+        this.arg1 = null;
+        this.arg2 = null;
+
+        if(parsedCode.length > 1){
+            this.arg1 = parsedCode[1];
+        }
+        if (parsedCode.length > 2){
+            this.arg2 = parsedCode[2];
+        }
+        
         return this.VMcode;
     }
 
     public String commandType(){
+
         if(this.command.equals("push")){
             this.commandType = "C_PUSH";
-            return "C_PUSH";
         } 
         else if (this.command.equals("pop")){
             this.commandType = "C_POP";
-            return "C_POP";
+        }
+        else if (this.command.equals("goto")){
+            this.commandType = "C_GOTO";
+        }
+        else if (this.command.equals("if-goto")){
+            this.commandType = "C_IF";
+        }
+        else if (this.command.equals("label")){
+            this.commandType = "C_LABEL";
+        }
+        else if (this.command.equals("function")){
+            this.commandType = "C_FUNCTION";
+        }
+        else if (this.command.equals("call")){
+            this.commandType = "C_CALL";
+        }
+        else if (this.command.equals("return")){
+            this.commandType = "C_RETURN";
+        }
+        else if (
+            this.command.equals("add") ||
+            this.command.equals("sub") ||
+            this.command.equals("neg") ||
+            this.command.equals("eq") ||
+            this.command.equals("gt") ||
+            this.command.equals("lt") ||
+            this.command.equals("and") ||
+            this.command.equals("or") || 
+            this.command.equals("not")
+            
+        ) {
+            this.commandType = "C_ARITHMETIC";
         }
         else {
-            this.commandType = "C_ARITHMETIC";
-            return "C_ARITHMETIC";
+            throw new Error(String.format("'%s' - Command invalid", this.command));
         }
+
+        return this.commandType;
     }
 
     public String arg1(){
-        if(this.commandType.equals("C_ARITHMETIC")){
-            return this.command;
+        return this.arg1;
+        /*
+        if(this.arg1 != null){
+            return this.arg1;
         }
-        else if(this.commandType.equals("C_PUSH") || this.commandType.equals("C_POP")){
-            return this.segment;
-        }
-        throw new Error("Invalid command type. Method 'arg1' only supports commands: 'C_ARITHMETIC', 'C_PUSH' and 'C_POP'.");
+        throw new Error(String.format("'%s' - Invalid arg1 type for command %s. Method 'arg1' only supports commands: 'C_PUSH', 'C_POP', 'C_GOTO', 'C_IF', 'C_LABEL', 'C_FUNCTION' and 'C_CALL'.", this.arg1, this.command));
+        */
     }
 
     public String arg2(){
-        if(this.commandType.equals("C_PUSH") || this.commandType.equals("C_POP")){
-            return this.value;
+        return this.arg2;
+        /*
+        if(this.arg2 != null){
+            return this.arg2;
         }
-        throw new Error("Incorrect use of method 'arg2'. Should only be called when command type is 'C_PUSH' or 'C_POP'.");
+        throw new Error(String.format("'%s' - Invalid arg2 type for command %s. Should only be called when command type is 'C_PUSH', 'C_POP', 'C_FUNCTION' and 'C_CALL'.", this.arg2, this.command));
+        */
     }
 
     public void close() {

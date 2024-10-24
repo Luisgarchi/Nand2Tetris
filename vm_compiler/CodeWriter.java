@@ -1,21 +1,28 @@
 import java.io.FileWriter;
 import java.io.IOException;
-
+import java.util.Hashtable;
 
 public class CodeWriter {
 
-    private String filename;
+    private String current_file;
     private FileWriter output;
-    private String curr_instruction;
+    private String current_instruction;
+
+    // Logical operations label counter
     private int eq_label_count;
     private int gt_label_count;
     private int lt_label_count;
 
-    public CodeWriter(String input_filename){
+    // Function return label counter
+    private Hashtable<String, Integer> return_count_table;
 
-        this.filename = input_filename.split("\\.")[0];
+    // Current Function variable for prefixing to labels
+    private String current_function;
 
-        String output_filename = this.filename + ".asm";
+    public CodeWriter(String programName){
+
+        String output_filename = programName + ".asm";
+
         try {
             FileWriter fileWriter = new FileWriter(output_filename);
             this.output = fileWriter;
@@ -23,10 +30,17 @@ public class CodeWriter {
             e.printStackTrace(); 
         }
 
-        this.curr_instruction = "";
+        this.current_file = "";
+        this.current_instruction = "";
         this.eq_label_count = 0;
         this.gt_label_count = 0;
         this.lt_label_count = 0;
+        this.current_function="";
+        this.return_count_table = new Hashtable<>();
+    }
+
+    public void setFileName(String filename){
+        this.current_file = filename.substring(0, filename.lastIndexOf('.'));
     }
 
 
@@ -35,7 +49,7 @@ public class CodeWriter {
         // Takes an sequence of comamnds and writes them line by line to the output file
 
         try {
-            this.output.write("// " + this.curr_instruction);
+            this.output.write("// " + this.current_instruction);
             this.output.write(System.lineSeparator());
             for(int i = 0; i < code.length; i++){
                 this.output.write(code[i]);
@@ -46,8 +60,324 @@ public class CodeWriter {
         }
     }
 
+    public void writeInit(){
+
+        String[] code = {
+            // SP = 256
+            "@256",
+            "D=A",
+            "@SP",
+            "M=D",
+
+            // call Sys.init 
+
+            // push returnAddress
+            "@Sys.init$ret.0",
+            "D=A",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // push LCL
+            "@LCL",
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+            
+            // push ARG
+            "@ARG",
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // push THIS
+            "@THIS",
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // push THAT
+            "@THAT",
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // ARG = SP - 5 - nArgs
+            "@5",
+            "D=A",
+            "@SP",
+            "D=M-D",
+            "@ARG",
+            "M=D",
+
+            // LCL = SP 
+            "@SP",
+            "D=M",
+            "@LCL",
+            "M=D",
+
+            // goto functionName
+            "@Sys.init",
+            "0;JMP",
+
+            // (returnAddress)
+            "(Sys.init$ret.0)",
+            "@Sys.init$ret.0",
+            "0;JMP"
+        };
+
+        this.writeCode(code);
+    }
+
+
+    public void writeLabel(String instruction, String label){
+        
+        this.current_instruction = instruction;
+
+        String format_label = "(" + this.current_function + "$" + label + ")";
+
+        String[] code = {
+            format_label
+        };
+
+        this.writeCode(code);
+    }
+
+
+    public void writeGoto(String instruction, String label){
+
+        this.current_instruction = instruction;
+
+        String label_address = "@" + this.current_function + "$" + label;
+
+        String[] code = {
+            label_address,
+            "0;JMP"
+        };
+
+        this.writeCode(code);
+    }
+
+
+    public void writeIf(String instruction, String label){
+
+        this.current_instruction = instruction;
+
+        String label_address = "@" + this.current_function + "$" + label;
+
+        String[] code = {
+
+            "@SP",
+            "AM=M-1",
+            "D=M",
+            label_address,
+            "D;JNE"
+        };
+
+        this.writeCode(code);
+    }
+
+    public void writeFunction(String instruction, String function_name, String num_local_var){
+
+        this.current_instruction = instruction;
+
+        // Set the function name so we have the correct labels 
+        this.current_function = function_name;
+
+        // 1 = function label, num_local_var = amount of times to push a local variable (0), 4 = code per push
+        int code_length = 1 + Integer.parseInt(num_local_var) * 4;
+
+        String[] code = new String[code_length];
+
+        // Add function label
+        String function_label = "(" + function_name + ")";
+        code[0] = function_label;
+
+        // Push n local variables
+        for(int i = 0; i < Integer.parseInt(num_local_var); i++){
+            code[4*i + 1] = "@SP";
+            code[4*i + 2] = "AM=M+1";
+            code[4*i + 3] = "A=A-1";
+            code[4*i + 4] = "M=0";
+        }
+
+        this.writeCode(code);
+    }
+
+
+    public void writeCall(String instruction, String function_name, String num_args){
+
+        this.current_instruction = instruction;
     
-    public void writeArithmetic(String instruction, String command){
+        // Get the return label count for the specified function
+        if(!this.return_count_table.containsKey(function_name)){
+            this.return_count_table.put(function_name, 0);
+        }
+        int return_label_count = this.return_count_table.get(function_name);
+        String returnAddress = function_name + "$ret." + Integer.toString(return_label_count);
+
+        // Format instructions
+        String returnAddress_address = "@" + returnAddress;
+        String returnAddress_label = "(" + returnAddress + ")";
+        String function_address = "@" + function_name;
+        String num_args_address = "@" + num_args;
+
+        String[] code = {
+
+            // push returnAddress
+            returnAddress_address,
+            "D=A",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // push LCL
+            "@LCL",
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // push ARG
+            "@ARG",
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // push THIS
+            "@THIS",
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // push THAT
+            "@THAT",
+            "D=M",
+            "@SP",
+            "AM=M+1",
+            "A=A-1",
+            "M=D",
+
+            // ARG = SP - 5 - nArgs
+            "@5",
+            "D=A",
+            num_args_address,
+            "D=D+A",
+            "@SP",
+            "D=M-D",
+            "@ARG",
+            "M=D",
+
+            // LCL = SP
+            "@SP",
+            "D=M",
+            "@LCL",
+            "M=D",
+
+            // goTo functionName
+            function_address,
+            "0;JMP",
+
+            // (returnAddress)
+            returnAddress_label
+        };
+
+        this.return_count_table.put(function_name, 1 + return_label_count);
+
+        this.writeCode(code);
+    }
+
+
+    public void writeReturn(){
+
+        this.current_instruction = "return";
+        
+        String[] code = {
+            //endFrame = LCL
+
+            // returnAddress = *(endFrame - 5)
+            "@5",
+            "D=A",
+            "@LCL",
+            "A=M-D",
+            "D=M",
+            "@R13",
+            "M=D",
+
+            // *ARG = pop()
+            "@SP",
+            "A=M-1",
+            "D=M",
+            "@ARG",
+            "A=M",
+            "M=D",
+
+            // SP = ARG + 1
+            "@ARG",
+            "D=M+1",
+            "@SP",
+            "M=D",
+
+            // THAT = *(endFrame - 1)
+            "@LCL",
+            "A=M-1",
+            "D=M",
+            "@THAT",
+            "M=D",
+
+            // THIS = *(endFrame - 2)
+            "@2",
+            "D=A",
+            "@LCL",
+            "A=M-D",
+            "D=M",
+            "@THIS",
+            "M=D",
+
+            // ARG = *(endFrame - 3)
+            "@3",
+            "D=A",
+            "@LCL",
+            "A=M-D",
+            "D=M",
+            "@ARG",
+            "M=D",
+
+            // LCL = *(endFrame - 4)
+            "@4",
+            "D=A",
+            "@LCL",
+            "A=M-D",
+            "D=M",
+            "@LCL",
+            "M=D",
+
+            // goto returnAddress
+            "@R13",
+            "A=M",
+            "0;JMP"
+        };
+
+        this.writeCode(code);
+    }
+
+    
+    public void writeArithmetic(String command){
 
         /* Write any of the following commands: 
             - add   (arithmetic 2 arg)
@@ -61,7 +391,7 @@ public class CodeWriter {
             - not   (bitwise 1 arg)
         */
 
-        this.curr_instruction = instruction;
+        this.current_instruction = command;
 
         // add - arithmetic, 2 args
         if(command.equals("add")){
@@ -343,10 +673,10 @@ public class CodeWriter {
     }
 
 
-
+    /*
     public void writePushPop(String instruction, String command, String segment, String index){
 
-        this.curr_instruction = instruction;
+        this.current_instruction = instruction;
 
         if(command.equals("C_POP")){
             this.writePop(segment, index);
@@ -354,12 +684,15 @@ public class CodeWriter {
             this.writePush(segment, index);
         }
     }
+    */
 
-    private void writePop(String segment, String index){
+    public void writePop(String instruction, String segment, String index){
         // SP--
         // addr = segment + i
         // *addr = *SP
 
+        this.current_instruction = instruction;
+        
         if(
             segment.equals("local") || 
             segment.equals("argument") || 
@@ -444,7 +777,7 @@ public class CodeWriter {
 
     private void popStaticSegment(String index){
 
-        String static_addr = "@" + this.filename +"." + index;
+        String static_addr = "@" + this.current_file +"." + index;
 
         String[] code = {
             // *addr = *SP--
@@ -487,10 +820,12 @@ public class CodeWriter {
         this.writeCode(code);
     }
 
-    private void writePush(String segment, String index){
+    public void writePush(String instruction, String segment, String index){
         // addr = segment + i
         // *SP = *addr
         // SP++
+
+        this.current_instruction = instruction;
 
         if(
             segment.equals("local") || 
@@ -600,7 +935,7 @@ public class CodeWriter {
         // *SP = index
         // SP++
 
-        String static_addr = "@" + this.filename +"." + index;
+        String static_addr = "@" + this.current_file +"." + index;
 
         String[] code = {
             // *SP = *addr
@@ -647,11 +982,6 @@ public class CodeWriter {
         this.writeCode(code);
     }
 
-    /*
-     * Tidy code? Consistent naming
-     * Add argument to writeCode, writeArithmetic, writePushPop etc... (parser class provides the param?)
-     * Complete main?
-     */
 
     public void close(){
         try {
