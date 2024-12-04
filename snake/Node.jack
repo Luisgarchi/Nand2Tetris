@@ -1,0 +1,33 @@
+class Node {
+    field int x, y;
+    field Node next;
+
+    constructor Node new(int arg_x, int arg_y) {
+        let x = arg_x;
+        let y = arg_y;
+        let next = null;
+        return this;
+    }
+
+    method void setNext(Node nextNode) {
+        let next = nextNode;
+        return;
+    }
+
+    method Node getNext(){
+        return next;
+    }
+
+    method int getX(){
+        return x;
+    }
+
+    method int getY(){
+        return y;
+    }
+
+    method void dispose() {
+        do Memory.deAlloc(this);
+        return;
+    }
+}

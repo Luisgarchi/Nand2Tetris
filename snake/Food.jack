@@ -1,0 +1,36 @@
+class Food {
+
+    field int x, y, range_x, range_y;
+    field Random random;
+
+	constructor Food new(int range_1, int range_2) {
+        let x = 0;
+        let y = 0;
+        let range_x = range_1;
+        let range_y = range_2;
+		let random = Random.new(45);
+		do random.addCallTime(random);
+		return this;
+	}
+
+    method void setNewLocation(){
+        let x = random.randRange(range_x);
+        let y = random.randRange(range_y);
+        return;
+    }
+
+    method int getX(){
+        return x;
+    }
+
+    method int getY(){
+        return y;
+    }
+
+	method void dispose() {
+		do random.dispose();
+		do Memory.deAlloc(this);
+		return;
+	}
+
+}

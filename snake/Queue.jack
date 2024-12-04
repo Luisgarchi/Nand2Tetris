@@ -1,0 +1,95 @@
+class Queue {
+
+    field Node first, last;
+
+    constructor Queue new(){
+        let first = null;
+        let last = null;
+        return this;
+    }
+
+    method void push(int x, int y){
+
+        var Node newNode;
+        let newNode = Node.new(x, y);
+
+        if (~(last = null)) {
+			do last.setNext(newNode);
+		}
+        // insert new node at the top of the queue
+        let last = newNode;
+
+        if (first = null) {
+			let first = newNode;
+		}
+        return;
+    }
+
+    method Node pop(){
+        var Node oldFirst;
+
+        // If the queue is empty, do nothing
+        if(~(first = null)){
+            let oldFirst = first;
+            let first = oldFirst.getNext();
+            return oldFirst;
+        }
+
+        return null;
+    }
+
+    method Node peakRight(){
+        return last;
+    }
+
+    method boolean isEmpty(){
+        return (first = null);
+    }
+
+    method void dispose(){
+        var Node current, nextNode;
+
+        let current = first;
+        while (~(current = null)) {
+            let nextNode = current.getNext();
+            do current.dispose();
+            let current = nextNode;
+        }
+
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method int length(){
+        var int len;
+        var Node current, nextNode;
+        
+        let len = 0;
+        let current = first;
+
+        while (~(current = null)) {
+            let nextNode = current.getNext();
+            let len = len + 1;
+            let current = nextNode;
+        }
+
+        return len;
+    }
+
+    method boolean contains(int x, int y){
+
+        var Node current, nextNode;
+    
+        let current = first;
+
+        while (~(current = null)) {
+            let nextNode = current.getNext();
+            if ((current.getX() = x) & (current.getY() = y)){
+                return true;
+            }
+            let current = nextNode;
+        }
+
+        return false;
+    }
+}

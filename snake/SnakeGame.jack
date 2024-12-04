@@ -1,0 +1,221 @@
+class SnakeGame {
+    
+    field Queue snake;
+    field Food food;
+    field int direction, last_direction, time, timestep, tail_lag, score;
+    field boolean exit;
+
+    constructor SnakeGame new(){
+        let snake = Queue.new();
+        do initSnake(32, 16);
+
+        let food = Food.new(63, 31);
+        do initFood();
+
+        let direction = 0;
+        let last_direction = 0;
+        let time = 0;
+        let timestep = 20;
+        let tail_lag = 4;
+        let score = 0;
+
+        let exit = false;
+
+        return this;
+    }
+
+    method void dispose(){
+        do snake.dispose();
+        do food.dispose();
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method void initSnake(int x, int y){
+        do snake.push(x, y);
+        do drawSnakeBody(x, y, true);
+        return;
+    }
+
+    method void initFood(){
+
+        var int x, y;
+
+        do food.setNewLocation();
+        let x = food.getX();
+        let y = food.getY();
+
+        while (snake.contains(x, y)){
+            do food.setNewLocation();
+            let x = food.getX();
+            let y = food.getY();
+        }
+
+        do drawFood(x, y);
+        return;
+    }
+
+    method void moveSnake() {
+        var Node headNode, tailNode;
+        var int newX, newY;
+
+        let headNode = snake.peakRight();
+        let newX = headNode.getX();
+        let newY = headNode.getY();
+
+        if (direction = 1) {
+            let newY = newY - 1;    // Move up
+            let last_direction = direction;
+        }
+        if (direction = 2) {
+            let newY = newY + 1;     // Move down
+            let last_direction = direction;
+        }
+        if (direction = 3) {
+            let newX = newX - 1;    // Move left
+            let last_direction = direction;
+        }
+        if (direction = 4) {
+            let newX = newX + 1;     // Move right
+            let last_direction = direction;
+        }
+
+        if (newX > 63){
+            let newX = 0;
+        }
+        if (newX < 0){
+            let newX = 63;
+        }
+        if (newY > 31){
+            let newY = 0;
+        }
+        if (newY < 0){
+            let newY = 31;
+        }
+        
+        // Check if collision with body
+        if(snake.contains(newX, newY)){
+            let exit = true;
+        }
+
+        // Check if moving the head results in eating the food
+        if((newX = food.getX()) & (newY = food.getY())){
+            do food.setNewLocation();
+            do drawFood(food.getX(), food.getY());
+            let score = score + 1;
+            let tail_lag = tail_lag + score + 1;
+
+            if (timestep > 4){
+                let timestep = timestep - 1;
+            }
+        }
+
+        // Move the head of the snake
+        do snake.push(newX, newY);
+        do drawSnakeBody(newX, newY, true);
+
+        if(tail_lag = 0){
+            // Move the tail of the snake
+            let tailNode = snake.pop();
+            do drawSnakeBody(tailNode.getX(), tailNode.getY(), false);
+            do tailNode.dispose();
+        }
+        if(tail_lag > 0){
+            let tail_lag = tail_lag - 1;
+        }
+
+        return;
+    }
+    
+    method void drawSnakeBody(int x, int y, boolean color){
+
+        var int x1, y1, x2, y2;
+
+        let x1 =  x * 8;
+        let x2 = ((x + 1) * 8) - 1;
+
+        let y1 =  y * 8;
+        let y2 = ((y + 1) * 8) - 1;
+
+        do Screen.setColor(color);
+        do Screen.drawRectangle(x1, y1, x2, y2);
+        return;
+    }
+
+    method void drawFood(int x, int y){
+
+        var int mem_loc;
+        let mem_loc = y * 32 * 8;
+        let mem_loc = mem_loc + (x / 2);
+
+        if((x & 1) = 0){
+            do drawFoodLeft(mem_loc);
+        }
+
+        if((x & 1) = 1){
+            do drawFoodRight(mem_loc);
+        }
+        return;
+    }
+
+    method void drawFoodLeft(int location) {
+        var int memAddress; 
+        let memAddress = 16384+location;
+        // column 0
+        do Memory.poke(memAddress, Memory.peek(memAddress) | 60);
+        do Memory.poke(memAddress +32, Memory.peek(memAddress + 32) | 126);
+        do Memory.poke(memAddress +64, Memory.peek(memAddress + 64) | 255);
+        do Memory.poke(memAddress +96, Memory.peek(memAddress + 96) | 255);
+        do Memory.poke(memAddress +128, Memory.peek(memAddress + 128) | 255);
+        do Memory.poke(memAddress +160, Memory.peek(memAddress + 160) | 255);
+        do Memory.poke(memAddress +192, Memory.peek(memAddress + 192) | 126);
+        do Memory.poke(memAddress +224, Memory.peek(memAddress + 224) | 60);
+        return;
+    }
+
+    method void drawFoodRight(int location) {
+        var int memAddress; 
+        let memAddress = 16384+location;
+        // column 0
+        do Memory.poke(memAddress, Memory.peek(memAddress) | 15360);
+        do Memory.poke(memAddress +32, Memory.peek(memAddress + 32) | 32256);
+        do Memory.poke(memAddress +64, Memory.peek(memAddress + 64) | -256);
+        do Memory.poke(memAddress +96, Memory.peek(memAddress + 96) | -256);
+        do Memory.poke(memAddress +128, Memory.peek(memAddress + 128) | -256);
+        do Memory.poke(memAddress +160, Memory.peek(memAddress + 160) | -256);
+        do Memory.poke(memAddress +192, Memory.peek(memAddress + 192) | 32256);
+        do Memory.poke(memAddress +224, Memory.peek(memAddress + 224) | 15360);
+        return;
+    }
+
+    method void run(){
+
+        var char key;
+
+        while (~exit) {
+            let key = Keyboard.keyPressed();
+
+            // Change direction based on key input
+            if ((key = 131) & (~(last_direction = 2))) { let direction = 1; } // Up
+            if ((key = 133) & (~(last_direction = 1))) { let direction = 2; } // Down
+            if ((key = 130) & (~(last_direction = 4))) { let direction = 3; } // Left
+            if ((key = 132) & (~(last_direction = 3))) { let direction = 4; } // Right
+
+            // Quit game if 'Q' is pressed
+            if (key = 81) { let exit = true; }
+
+            // Increment the timestep
+            if(~(direction = 0)){ let time = time + 1; }
+
+            // Check if timestep is equivalent to a game frame 20 (timesteps)
+            if(time = timestep){
+                let time = 0;
+                do moveSnake(); 
+            }
+
+            do Sys.wait(10); // delay for smoother controls
+        }
+        return;
+    }
+
+}
