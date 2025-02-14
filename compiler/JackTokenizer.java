@@ -283,94 +283,6 @@ public class JackTokenizer {
         }
     }
 
-
-
-    
-    private boolean checkSymbol(){
-
-        // Iterate over symbol list and check if current char is a match
-        for(int i = 0; i < this.symbols.length; i++){
-            if(this.currentChar == this.symbols[i]){
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean checkString(){
-
-        // first check to see if the initial character is a double apostrophe '"'
-        if(this.currentChar != '"'){
-            return false;
-        }
-
-        // Reset the current token because we do not want to keep the leading and trailing double apostrophes
-        currentToken.setLength(0);
-
-        // keep processing the string body until we reach the next '"'
-        while(this.currentChar != '"'){
-
-            if(this.currentChar == '\n'){
-                throw new Error("String constants must not contain newline characters");
-            }
-            this.currentToken.append(this.currentChar);
-            this.getNextChar();
-        }
-
-        // Advance to the next char because we do not want the trailing '"'
-        this.getNextChar();
-        
-        return true;
-    }
-
-    private boolean checkInteger(){
-        
-        if("0123456789".indexOf(this.currentChar) == -1){
-            return false;
-        }
-        
-        // keep processing the string body until we reach the next '"'
-        while("0123456789".indexOf(this.currentChar) != -1){
-            this.currentToken.append(this.currentChar);
-            this.getNextChar();
-        }
-        // DO NOT set the currentChar to null
-        return true;
-    }
-
-    private boolean isIdenfierCurrentChar(){
-        return (Character.isAlphabetic(this.currentChar) | Character.isDigit(this.currentChar) | this.currentChar == '_');
-    }
-
-    private boolean checkIdentifier(){
-
-        //a sequence of letters, digits, and underscore ('_') not starting with a digit
-        if(!isIdenfierCurrentChar()){
-            return false;
-        }
-
-        // keep processing the identifier until we reach a character that is not permitted
-        while(isIdenfierCurrentChar()){
-            this.getNextChar();
-            this.currentToken.append(this.currentChar);
-        }
-
-        // DO NOT set the currentChar to null
-        return true;
-    }
-
-    private boolean checkKeyword(){
-        // Iterate over symbol list and check if current char is a match
-        for(int i = 0; i < this.keywords.length; i++){
-            if(this.currentToken.equals(this.keywords[i])){
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-
     public String tokenType(){
 
         /*
@@ -406,6 +318,33 @@ public class JackTokenizer {
 
 class LineTokenizer{
 
+    /*
+        This method "tokenizes" tokens in a single line according to the definition
+        of expressions and their respective "regular expressions". The computation
+        of each token (or regular express) is achieved by defining their respective 
+        finite automatons and handling there individual termination criteria. 
+        
+        The termination criteria defines the end of a token. Once found the token 
+        is saved in a data strucutre. Common termination criteria include:
+        - Whitepace
+        - An invalid character of the current expression
+        - The end of the line being tokenized.
+
+        Characters that define the end of a token for one expression BUT represent
+        a state transition in another expression need to be handle explicitly by 
+        "looking ahead". This is important in order to handle comments correctly. 
+        
+        Consider the following two cases when the first character of a token is:
+        - The "/" character is a symbol token unless it is followed by another "/"
+           in which case it is a single line comment "//". Single like comments are
+           not tokenized and discarded.
+        - The "*" character is a symbol token unless it is followed by a "/" AND
+          the current state of the tokenizing process IS a multi-line comment.
+        - The need to know whether the tokenizer is parsing a multi-line comment 
+           or not requires employing a state variable implemented as "this.isMLC"
+    */
+
+
     private static final Set<String> KEYWORDS = Set.of(
         "class" , "constructor" , "function" , "method" , "field" , "static" , "var" , 
         "int" , "char" , "boolean" , "void" , "true" , "false" , "null" , "this" , 
@@ -418,15 +357,16 @@ class LineTokenizer{
         '/', '&', '<', '>', '=', '~'
     );
 
-    String line;
-    boolean isMLC;          // Multi-Line Comment
-    int charIndex;
-    StringBuilder tempToken;
-    ArrayList<String> tokens;
+    private String line;
+    private boolean isMLC;          // Multi-Line Comment
+    private int charIndex;
+    private StringBuilder tempToken;
+    private ArrayList<String> tokens;
+
 
     public LineTokenizer(){
         this.tempToken = new StringBuilder();
-        this.tokens = new ArrayList<>();
+        this.tokens = new ArrayList<String>();
         this.isMLC = false;
     }
 
@@ -435,6 +375,15 @@ class LineTokenizer{
         this.line = line;
         this.tempToken.setLength(0);
         this.tokens.clear();
+    }
+
+    private void addToken(){
+
+        // Add parsed token to tokens
+        this.tokens.add(this.tempToken.toString());
+
+        // Reset the temporary token field
+        this.tempToken.setLength(0);
     }
 
     private char getChar(){
@@ -447,12 +396,32 @@ class LineTokenizer{
 
     public String[] tokenize(String line){
 
+        /*
+            Method responsible for returning parsed tokens of a single line of Jack
+            code. The method attempts to find the start of a new token by discarding
+            whitespaces. 
+            
+            When the first character of a potential token is encountered, it is checked 
+            against the first state transition of all the potential finite automatons 
+            of valid tokens. 
+            
+            Special characters ("/" & "*") that require look ahead to determine the
+            token, are explicitly checked and subsequently handled in their respective 
+            method. Because special characters can belong to more than one type of token
+            it is necessary to organise the code to check special characters before the 
+            the group that they may belong to.
+
+            The method for processesing each token proceeds to parse the current token 
+            according to its respective automata. Each method uses the same private fields 
+            to the current method (tokenize) to ensure consistency between nested operations. 
+        */
+
         this.initializeLine(line);
 
         // Iterate over all the characters of the line
-        while (charIndex < line.length()){
+        while (this.charIndex < line.length()){
 
-            char currentChar = this.line.charAt(charIndex);
+            char currentChar = this.getChar();
 
             // Check for whitespacing and move on if detected
             boolean isWhiteSpace = (currentChar == ' ') && (this.tempToken.toString() == " ");
@@ -466,6 +435,10 @@ class LineTokenizer{
             if(this.isMLC){
                 this.handleMLC();
             }
+            // handle forward slash -> tokenizes a symbol or handles either a single or multi-line comment.
+            else if(currentChar == '/'){
+                this.handleSlash();
+            }
 
             // tokize a string constant
             else if(currentChar == '"'){
@@ -477,26 +450,33 @@ class LineTokenizer{
                 this.tokenizeInteger();
             }
 
-            // handle forward slash -> tokenizes a symbol or handles either a single or multi-line comment.
-            else if(currentChar == '/'){
-                this.handleSlash();
+            // Check if it is a symbol
+            else if(LineTokenizer.SYMBOLS.contains(currentChar)){
+                this.tokenizeSymbol();
             }
 
+            // Check for identifier or keyword
+            else if(Character.isLetter(currentChar) || currentChar == '_'){
+                this.handleIdentifierOrSymbol();
+            }
         }
-        return (String[]) tokens.toArray();
+        return (String[]) this.tokens.toArray();
     }
 
 
     private void tokenizeString(){
 
-        // Append the LEADING double apostrophe to the temporary token
-        this.tempToken.append('"');
+        /*
+         * We must append the leading double apostrophe before the loop to avoid it
+         * from terminating immedately.
+        */
 
-        // Keep iterating until we find the end of the string. i.e. the next double apostrophe
+        this.tempToken.append('"');
         this.charIndex++;
 
+        // Keep iterating until we find the end of the string. i.e. the next double apostrophe
         while(
-            (charIndex < line.length()) && 
+            (this.charIndex < this.line.length()) && 
             (this.getChar() != '"')
         ) {
             this.tempToken.append(this.getChar());    // append the current character
@@ -504,14 +484,16 @@ class LineTokenizer{
         }
 
         // Check that the end of the string was found
-        if (charIndex >= line.length()){
+        if (this.charIndex >= this.line.length()){
             throw new IllegalStateException("The end of the string was not found in: '" + this.line + "'");
         }
 
         // Append the TRAILING double apostrophe to the temporary token
         this.tempToken.append('"');
+
+        // Add token and increment the current character index
+        this.addToken();
         this.charIndex++;
-        return;
     }
 
 
@@ -523,19 +505,15 @@ class LineTokenizer{
          *       return -1
         */
 
-        // Append the LEADING digit to the temporary token
-        this.tempToken.append(this.getChar());
-
         // Keep iterating until we find the end of the integer. i.g. the next char which is not a digit
-        this.charIndex++;
         while(
-            (charIndex < line.length()) && 
+            (this.charIndex < line.length()) && 
             ("0123456789".indexOf(this.getChar()) != -1)      
-        ) { 
+        ) {
             this.tempToken.append(this.getChar());            // append current digit
             this.charIndex++;
         }
-        return;
+        this.addToken();
     }
 
 
@@ -548,10 +526,11 @@ class LineTokenizer{
          * it is necessary to look 1 character ahead to determing the presents of either a "/" or a "*"
         */
 
-        // Before hand check to see if there is another symbol in the line.
+        // Beforehand, check to see if there is another symbol in the line.
         char charAhead;
-        if(charIndex + 1 >= line.length()){
+        if(this.charIndex + 1 >= this.line.length()){
             this.tempToken.append('/');
+            this.addToken();
             this.charIndex++;
             return;
         }
@@ -567,17 +546,16 @@ class LineTokenizer{
                 this.charIndex++;
             }
         }
-
         // handle multi-line comment
         else if(charAhead == '*'){
             // set multi-line comment attribute to true
             this.charIndex++;
             this.isMLC = true;
         }
-
         // otherwise the slash is just a regular symbol
         else{
             this.tempToken.append('/');
+            this.addToken();
             this.charIndex++;
         }
     }
@@ -592,8 +570,8 @@ class LineTokenizer{
         */
         
         while(
-            (this.charIndex < this.line.length()) && 
-            !(
+            (this.charIndex + 1 < this.line.length()) &&    // ensure offset
+            !(                                              // not "*/"
                 (this.getChar() == '*') && 
                 (this.getChar(1) == '/')
             )
@@ -601,9 +579,40 @@ class LineTokenizer{
             this.charIndex++;
         }
 
+        // Found end of multi line comment character
         if((this.getChar() == '*') && (this.getChar(1) == '/')){
             this.isMLC = false;
             this.charIndex += 2;    // 2 increments one for tailing '/' and to point index to the next character
         }
+        // Otheriwse the end of the line
+        else {
+            this.charIndex++;
+        }
+    }
+
+    private void tokenizeSymbol(){
+        this.tempToken.append(this.getChar());
+        this.addToken();
+        this.charIndex++;
+    }
+
+    private void handleIdentifierOrSymbol(){
+
+        while(
+            (this.charIndex < this.line.length()) && 
+            (this.isLetterDigitOrUnderscore(this.getChar()))
+        ){
+            this.tempToken.append(this.getChar());
+            this.charIndex++;
+        }
+        this.addToken();
+    }
+
+    private boolean isLetterDigitOrUnderscore(char character){
+        return(
+            Character.isLetter(character) ||
+            Character.isDigit(character) ||
+            character == '_'
+        );
     }
 }
